@@ -1,13 +1,9 @@
 import { DynamoDBClient, GetItemCommand, PutItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { Readable } from "stream";
 
 // AWS SDK の設定
 const dynamoDB = new DynamoDBClient({});
 const s3 = new S3Client({});
-
-const BUCKET_NAME = "usagi-server-homepage-new"; // S3バケット名
-const FILE_KEY = "dynmap/standalone/dynmap_world.json"; // S3内のJSONファイルのパス
 
 // S3オブジェクトのBodyを文字列に変換するヘルパー関数
 const streamToString = async (stream) => {
@@ -21,7 +17,7 @@ const streamToString = async (stream) => {
 export const handler = async () => {
   try {
     // S3からプレイヤーデータを取得
-    const s3Data = await s3.send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: FILE_KEY }));
+    const s3Data = await s3.send(new GetObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: process.env.FILE_KEY }));
     const player_list = JSON.parse(await streamToString(s3Data.Body)).players;
 
     for (const player of player_list) {
@@ -31,7 +27,7 @@ export const handler = async () => {
       // PlayerStateテーブルからログイン情報を取得
       const stateResult = await dynamoDB.send(
         new GetItemCommand({
-          TableName: "PlayerState",
+          TableName: process.env.STATE_TABLE,
           Key: {
             playerId: { S: playerId },
           },
@@ -42,7 +38,7 @@ export const handler = async () => {
         // 初回保存: ログイン時刻とオンライン状況を保存
         await dynamoDB.send(
           new PutItemCommand({
-            TableName: "PlayerState",
+            TableName: process.env.STATE_TABLE,
             Item: {
               playerId: { S: playerId },
               loginTimestamp: { N: now.toString() }, // TTL対象
@@ -58,7 +54,7 @@ export const handler = async () => {
         // PlayerCreditsテーブルのクレジットを更新
         await dynamoDB.send(
           new UpdateItemCommand({
-            TableName: "PlayerCredits",
+            TableName: process.env.CREGIT_TABLE,
             Key: {
               playerId: { S: playerId },
             },
@@ -72,7 +68,7 @@ export const handler = async () => {
         // PlayerStateテーブルのオンライン状況を更新
         await dynamoDB.send(
           new UpdateItemCommand({
-            TableName: "PlayerState",
+            TableName: process.env.STATE_TABLE,
             Key: {
               playerId: { S: playerId },
             },
